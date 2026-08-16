@@ -1,0 +1,25 @@
+{
+  "asset_id": 1,
+  "source": "C:\\Users\\Dark\\training\\projects\\project_1\\gaa-kickout-vision\\data\\raw\\data_2.mp4",
+  "media": {
+    "filename": "C:\\Users\\Dark\\training\\projects\\project_1\\gaa-kickout-vision\\data\\raw\\data_2.mp4",
+    "duration_s": 754.8408823034181,
+    "fps": 29.695,
+    "n_frames": 22415,
+    "width": 854,
+    "height": 478,
+    "codec": "h264",
+    "bytes": 95588365
+  },
+  "proxy": {
+    "path": "C:\\Users\\Dark\\training\\projects\\project_1\\gaa-video-environment\\data\\proxy\\data_2_proxy.mp4",
+    "build_seconds": 68.419,
+    "realtime_factor": 11.03,
+    "mb": 31.92
+  },
+  "alignment": {
+    "manifest_found": false,
+    "offset_s": 0.0,
+    "warnings": []
+  }
+}

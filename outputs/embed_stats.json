@@ -1,0 +1,14 @@
+{
+  "device": "cpu",
+  "model": "ViT-B-32/laion2b_s34b_b79k",
+  "smoke_test": false,
+  "dim": 512,
+  "n_keyframes_per_clip": 8,
+  "clips_embedded": 19,
+  "frames_encoded": 152,
+  "model_load_s": 22.32,
+  "embed_wall_clock_s": 43.81,
+  "seconds_per_clip": 2.306,
+  "ms_per_frame": 288.2,
+  "total_embeddings_in_db": 19
+}

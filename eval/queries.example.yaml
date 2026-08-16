@@ -1,0 +1,63 @@
+# Relevance judgements for the retrieval evaluation.
+#
+# Copy to eval/queries.yaml and fill in. Generate a version pre-populated with your
+# actual clip inventory with:
+#
+#     python src/s05_benchmark.py --init-eval
+#
+# Grades: 2 = clearly relevant, 1 = partially relevant, 0 = not relevant (omit).
+#
+# Judge before you look at any system output. If you rank the clips after seeing
+# what the system returned, you are measuring your own anchoring and the numbers
+# mean nothing. Aim for 15–20 queries; below about 12 the per-query variance
+# swamps the semantic-versus-hybrid difference you are trying to detect.
+
+_instructions: >
+  Each query lists the clip_ids a human judge considers relevant. `filters` are
+  applied only in hybrid mode; the semantic arm ignores them entirely, which is
+  what makes the comparison an ablation rather than two unrelated runs.
+
+queries:
+  - id: q01
+    text: "a contested kickout with players jumping for the ball"
+    filters:
+      event_type: kickout_contest
+    relevant:
+      3: 2
+      7: 2
+      11: 1
+
+  - id: q02
+    text: "a kickout that went short to a defender"
+    filters:
+      event_type: kickout_contest
+      zone: own_third
+    relevant:
+      2: 2
+      5: 1
+
+  - id: q03
+    text: "a long kickout landing in the middle third"
+    filters:
+      event_type: kickout_contest
+      zone: middle
+    relevant:
+      8: 2
+      9: 2
+      12: 1
+
+  - id: q04
+    text: "players competing for a high ball near the sideline"
+    filters:
+      event_type: kickout_contest
+    relevant:
+      4: 2
+      13: 1
+
+  - id: q05
+    text: "a kickout won cleanly and uncontested"
+    filters:
+      event_type: kickout_contest
+    relevant:
+      1: 2
+      6: 1

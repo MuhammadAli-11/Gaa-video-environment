@@ -1,0 +1,32 @@
+# Media and derived artefacts
+data/
+*.mp4
+*.mkv
+*.mov
+*.jpg
+*.jpeg
+*.png
+!outputs/figures/*.png
+
+# Raw participant data — never commit this
+pilot/sessions/*
+!pilot/sessions/.gitkeep
+pilot/*_signed*
+pilot/recordings/
+
+# Filled-in judgements are kept; the working copy is not
+eval/queries.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

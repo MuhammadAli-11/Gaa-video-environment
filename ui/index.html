@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Match retrieval</title>
+<style>
+  /* Deliberately plain. This interface exists to test whether people can find a
+     clip under time pressure, not to be looked at. Every visual decision here is
+     about legibility at a glance and nothing else. */
+  :root {
+    --ink: #16181c;
+    --muted: #5c626b;
+    --line: #d5d8dd;
+    --bg: #fbfbfc;
+    --panel: #ffffff;
+    --hit: #1c5d3a;
+    --warn: #8a2b18;
+    --focus: #0b57d0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    border-bottom: 1px solid var(--line); background: var(--panel);
+    padding: 10px 16px; display: flex; gap: 16px; align-items: baseline;
+    flex-wrap: wrap; position: sticky; top: 0; z-index: 10;
+  }
+  h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  .meta { color: var(--muted); font-size: 13px; }
+  main { padding: 16px; max-width: 1200px; margin: 0 auto; }
+  .searchbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  input[type=text], select {
+    font: inherit; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 3px; background: var(--panel); color: var(--ink);
+  }
+  input[type=text] { flex: 1 1 320px; }
+  button {
+    font: inherit; padding: 8px 14px; border: 1px solid var(--ink);
+    background: var(--ink); color: #fff; border-radius: 3px; cursor: pointer;
+  }
+  button.secondary { background: var(--panel); color: var(--ink); border-color: var(--line); }
+  button:disabled { opacity: .45; cursor: default; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+  .filters label { font-size: 13px; color: var(--muted); }
+  .status { font-size: 13px; color: var(--muted); min-height: 20px; margin-bottom: 10px; }
+  .status strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+  .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .card {
+    border: 1px solid var(--line); border-radius: 3px; background: var(--panel);
+    padding: 0; cursor: pointer; text-align: left; color: inherit; overflow: hidden;
+  }
+  .card[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+  .card img { width: 100%; display: block; background: #e6e8ea; aspect-ratio: 16/9; object-fit: cover; }
+  .card .body { padding: 7px 8px; font-size: 12.5px; }
+  .card .tc { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .card .sub { color: var(--muted); }
+  video { width: 100%; background: #000; border-radius: 3px; }
+  .player-meta { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .player-meta dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 6px 0 0; }
+  .player-meta dt { color: var(--muted); }
+  .player-meta dd { margin: 0; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .empty { color: var(--muted); border: 1px dashed var(--line); padding: 20px; border-radius: 3px; }
+  /* Pilot panel */
+  #pilot {
+    border-top: 1px solid var(--line); background: #f4f5f7;
+    padding: 10px 16px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    position: sticky; bottom: 0; font-size: 13px;
+  }
+  #timer { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 78px; }
+  #timer.over { color: var(--warn); }
+  .vocab { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+  .vocab code { background: #eceef1; padding: 1px 5px; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Match retrieval</h1>
+  <span class="meta" id="corpus">loading…</span>
+  <span class="meta" id="modelinfo"></span>
+</header>
+
+<main>
+  <div class="searchbar">
+    <input type="text" id="q" placeholder="Describe what you want to see" autocomplete="off"
+           aria-label="Search query">
+    <button id="go">Search</button>
+    <button id="browse" class="secondary" title="Structured filtering only, no embedding">Browse all</button>
+  </div>
+
+  <div class="filters">
+    <label for="etype">Event</label>
+    <select id="etype"><option value="">any</option></select>
+    <label for="zone">Zone</label>
+    <select id="zone"><option value="">any</option></select>
+    <label for="mode">Retrieval</label>
+    <select id="mode">
+      <option value="hybrid">hybrid (filters + meaning)</option>
+      <option value="semantic">meaning only</option>
+    </select>
+    <label for="limit">Results</label>
+    <select id="limit">
+      <option>5</option><option>10</option><option>20</option>
+    </select>
+  </div>
+
+  <p class="vocab" id="vocab"></p>
+  <p class="status" id="status"></p>
+
+  <div class="layout">
+    <section aria-label="Results">
+      <div class="results" id="results"></div>
+      <p class="empty" id="empty">No search yet. Type what you are looking for and press Enter.</p>
+    </section>
+    <section aria-label="Player">
+      <video id="player" controls preload="metadata" playsinline></video>
+      <div class="player-meta" id="playermeta">Select a result to play it.</div>
+    </section>
+  </div>
+</main>
+
+<div id="pilot">
+  <strong>Pilot</strong>
+  <input type="text" id="participant" placeholder="participant id" size="10" aria-label="Participant id">
+  <button id="startsession" class="secondary">Start session</button>
+  <select id="task" aria-label="Task">
+    <option value="">task…</option>
+    <option>T1</option><option>T2</option><option>T3</option><option>T4</option><option>T5</option>
+  </select>
+  <button id="starttask" class="secondary" disabled>Start task</button>
+  <span id="timer">--:--</span>
+  <button id="succeed" disabled>Found it</button>
+  <button id="fail" class="secondary" disabled>Give up</button>
+  <span class="meta" id="pilotstatus"></span>
+</div>
+
+<script>
+const API = "";                    // same origin: the API serves this file
+let facets = { task_budget_s: 90 };
+let sessionId = null, taskId = null, taskStart = null, timerHandle = null;
+let selectedClip = null;
+
+const $ = id => document.getElementById(id);
+const fmt = s => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(Math.floor(s%60)).padStart(2,"0")}`;
+
+/* ---------------------------------------------------------------- boot ---- */
+async function boot() {
+  try {
+    const [f, h] = await Promise.all([
+      fetch(`${API}/facets`).then(r => r.json()),
+      fetch(`${API}/health`).then(r => r.json()),
+    ]);
+    facets = f;
+    $("corpus").textContent =
+      `${f.n_events} events indexed · ${fmt(f.match_length_s)} of footage · ${f.task_budget_s}s budget`;
+    $("modelinfo").textContent = `${h.model} on ${h.device}`;
+    for (const t of f.event_types) $("etype").append(new Option(t, t));
+    for (const z of f.pitch_zones) $("zone").append(new Option(z, z));
+    // Pilot participants kept guessing at vocabulary, so show it rather than
+    // making them discover it under a countdown.
+    $("vocab").innerHTML = "The index knows these events: " +
+      f.event_types.map(t => `<code>${t}</code>`).join(" ") +
+      (f.pitch_zones.length ? " · zones: " + f.pitch_zones.map(z => `<code>${z}</code>`).join(" ") : "");
+    $("timer").textContent = fmt(f.task_budget_s);
+  } catch (e) {
+    $("status").textContent = "Cannot reach the API. Is uvicorn running on port 8000?";
+  }
+}
+
+/* -------------------------------------------------------------- search ---- */
+async function search(structuredOnly = false) {
+  const q = $("q").value.trim();
+  if (!structuredOnly && !q) { $("q").focus(); return; }
+
+  const params = new URLSearchParams({ limit: $("limit").value });
+  if ($("etype").value) params.set("event_type", $("etype").value);
+  if ($("zone").value) params.set("zone", $("zone").value);
+
+  let url;
+  if (structuredOnly) {
+    url = `${API}/events?${params}`;
+  } else {
+    params.set("q", q);
+    params.set("mode", $("mode").value);
+    url = `${API}/search?${params}`;
+  }
+
+  $("status").textContent = "Searching…";
+  const t0 = performance.now();
+  const res = await fetch(url).then(r => r.json());
+  const wall = performance.now() - t0;
+
+  render(res.results);
+  const t = res.timings_ms || {};
+  $("status").innerHTML = `<strong>${res.n_results}</strong> results in ` +
+    `<strong>${wall.toFixed(0)} ms</strong> ` +
+    (t.text_encode !== undefined
+      ? `(encode ${t.text_encode.toFixed(0)} ms · search ${t.vector_search.toFixed(0)} ms)`
+      : `(structured only, no embedding)`) +
+    (res.cold_start ? " — cold start, model was loading" : "");
+
+  if (sessionId && taskId) {
+    logEvent("query", { q: structuredOnly ? null : q, mode: res.mode,
+                        n_results: res.n_results, latency_ms: Math.round(wall) });
+  }
+}
+
+function render(results) {
+  const box = $("results");
+  box.innerHTML = "";
+  $("empty").style.display = results.length ? "none" : "block";
+  if (!results.length) $("empty").textContent = "Nothing matched. Try different words, or clear the filters.";
+
+  for (const r of results) {
+    const card = document.createElement("button");
+    card.className = "card";
+    card.setAttribute("aria-pressed", "false");
+    card.innerHTML = `
+      <img src="${API}${r.thumb_url}" alt="" loading="lazy">
+      <div class="body">
+        <div class="tc">${r.timecode ?? "--:--"}</div>
+        <div class="sub">${r.event_type ?? ""}${r.pitch_zone ? " · " + r.pitch_zone : ""}</div>
+        <div class="sub">${r.similarity !== null && r.similarity !== undefined
+          ? "similarity " + r.similarity.toFixed(3) : ""}</div>
+      </div>`;
+    card.onclick = () => play(r, card);
+    box.append(card);
+  }
+}
+
+function play(r, card) {
+  document.querySelectorAll(".card").forEach(c => c.setAttribute("aria-pressed", "false"));
+  card.setAttribute("aria-pressed", "true");
+  selectedClip = r;
+  const v = $("player");
+  v.src = `${API}${r.clip_url}`;
+  v.play().catch(() => {});   /* autoplay may be blocked; controls still work */
+  $("playermeta").innerHTML = `
+    <dl>
+      <dt>Match time</dt><dd>${r.timecode ?? "—"}</dd>
+      <dt>Event</dt><dd>${r.event_type ?? "—"}</dd>
+      <dt>Zone</dt><dd>${r.pitch_zone ?? "—"}</dd>
+      <dt>Detector confidence</dt><dd>${r.detector_confidence ?? "—"}</dd>
+      <dt>Players in frame</dt><dd>${r.n_players ?? "—"}</dd>
+      <dt>Source</dt><dd>${r.source ?? "—"}</dd>
+      <dt>Clip id</dt><dd>${r.clip_id}</dd>
+    </dl>`;
+  if (sessionId && taskId) logEvent("clip_open", { clip_id: r.clip_id, timecode: r.timecode });
+}
+
+/* --------------------------------------------------------------- pilot ---- */
+async function logEvent(kind, payload) {
+  const t_ms = taskStart ? performance.now() - taskStart : null;
+  try {
+    await fetch(`${API}/session/event`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: sessionId, task_id: taskId, kind, payload, t_ms }),
+    });
+  } catch (e) { console.warn("telemetry failed", e); }
+}
+
+async function startSession() {
+  const p = $("participant").value.trim();
+  if (!p) { $("participant").focus(); return; }
+  const res = await fetch(`${API}/session/start`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ participant: p }),
+  }).then(r => r.json());
+  sessionId = res.session_id;
+  $("pilotstatus").textContent = `session ${sessionId} open`;
+  $("starttask").disabled = false;
+  $("startsession").disabled = true;
+  $("participant").disabled = true;
+  fetch(`${API}/warmup`, { method: "POST" });   // never make a participant pay the model load
+}
+
+function startTask() {
+  if (!$("task").value) { $("task").focus(); return; }
+  taskId = $("task").value;
+  taskStart = performance.now();
+  logEvent("task_start", {});
+  $("succeed").disabled = false;
+  $("fail").disabled = false;
+  $("starttask").disabled = true;
+  clearInterval(timerHandle);
+  timerHandle = setInterval(tick, 200);
+  tick();
+}
+
+function tick() {
+  const elapsed = (performance.now() - taskStart) / 1000;
+  const left = facets.task_budget_s - elapsed;
+  $("timer").textContent = (left < 0 ? "+" : "") + fmt(Math.abs(left));
+  $("timer").classList.toggle("over", left < 0);
+}
+
+function endTask(kind) {
+  logEvent(kind, { clip_id: selectedClip ? selectedClip.clip_id : null });
+  clearInterval(timerHandle);
+  $("succeed").disabled = true;
+  $("fail").disabled = true;
+  $("starttask").disabled = false;
+  $("pilotstatus").textContent = `${taskId} recorded as ${kind.replace("task_", "")}`;
+  taskId = null; taskStart = null;
+  $("timer").textContent = fmt(facets.task_budget_s);
+  $("timer").classList.remove("over");
+}
+
+/* ---------------------------------------------------------------- wire ---- */
+$("go").onclick = () => search(false);
+$("browse").onclick = () => search(true);
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") search(false); });
+$("startsession").onclick = startSession;
+$("starttask").onclick = startTask;
+$("succeed").onclick = () => endTask("task_success");
+$("fail").onclick = () => endTask("task_abandon");
+
+boot();
+</script>
+</body>
+</html>

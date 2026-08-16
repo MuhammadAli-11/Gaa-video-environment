@@ -1,0 +1,58 @@
+{
+  "backend": "sqlite",
+  "n_vectors": 19,
+  "dim": 512,
+  "matrix_mb": 0.04,
+  "index_load_ms": 1.48,
+  "exhaustive_search": {
+    "n_probes": 200,
+    "mean_ms": 0.0228,
+    "p50_ms": 0.0218,
+    "p95_ms": 0.0227,
+    "p99_ms": 0.0291
+  },
+  "bytes_per_vector": 2048,
+  "synthetic_sweep": [
+    {
+      "n_probes": 200,
+      "mean_ms": 0.0372,
+      "p50_ms": 0.0324,
+      "p95_ms": 0.0525,
+      "p99_ms": 0.0799,
+      "n_vectors": 100,
+      "matrix_mb": 0.2,
+      "within_500ms_budget": true
+    },
+    {
+      "n_probes": 200,
+      "mean_ms": 0.1898,
+      "p50_ms": 0.1665,
+      "p95_ms": 0.3331,
+      "p99_ms": 0.5583,
+      "n_vectors": 1000,
+      "matrix_mb": 1.95,
+      "within_500ms_budget": true
+    },
+    {
+      "n_probes": 200,
+      "mean_ms": 1.5262,
+      "p50_ms": 1.3568,
+      "p95_ms": 2.7934,
+      "p99_ms": 3.4615,
+      "n_vectors": 10000,
+      "matrix_mb": 19.53,
+      "within_500ms_budget": true
+    },
+    {
+      "n_probes": 200,
+      "mean_ms": 13.7291,
+      "p50_ms": 13.4176,
+      "p95_ms": 16.3237,
+      "p99_ms": 17.2446,
+      "n_vectors": 100000,
+      "matrix_mb": 195.31,
+      "within_500ms_budget": true
+    }
+  ],
+  "exhaustive_stays_under_10ms_up_to": 100000
+}

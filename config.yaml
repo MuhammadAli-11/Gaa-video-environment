@@ -1,0 +1,87 @@
+# gaa-video-environment configuration
+# Every path is relative to the repo root unless absolute.
+
+project:
+  name: gaa-video-environment
+  match_label: "data_2"
+
+paths:
+  # Source footage: the RAW compilation, not a Project 1 working clip.
+  # data_2.mp4 is an edited 12m35s compilation, 854x478, ~29.7 fps. Project 1
+  # dropped it as a TUNING source because the editing (cuts, replays, slow
+  # motion) confounds threshold fitting. That objection does not apply here:
+  # this project retrieves over content, it does not fit thresholds to it, and
+  # a compilation is unusually dense in the event class being indexed.
+  source_video: ../gaa-kickout-vision/data/raw/data_2.mp4
+  # Events: 19 HAND-MARKED kickouts, bridged out of Project 1's segmentation by
+  # tools/events_from_project1.py in compilation time. NOT s07's predictions —
+  # that detector measured precision@8 = 1/8, and indexing its output would
+  # confound retrieval error with detection error. See the provenance JSON.
+  events_csv: data/events_data_2.csv
+  # No tracks for data_2: Project 1 has only ever run s02/s03 on lgf26_final_w1.
+  # pitch_zone is therefore NULL throughout, which s01 reports rather than fakes.
+  tracks_parquet: null
+  # Timecode cross-check is not applicable: the events are in raw-compilation
+  # time by construction and tools/events_from_project1.py already verifies them
+  # against Project 1's segment map, which is a stronger check than this one.
+  manifest: null
+  proxy_dir: data/proxy
+  clips_dir: data/clips
+  thumbs_dir: data/thumbs
+  outputs_dir: outputs
+
+db:
+  # sqlite   → no server, no Docker, no install. Ranking runs in NumPy.
+  # postgres → pgvector + HNSW. Needs docker compose up.
+  # The evaluation produces the same numbers either way; only the ranking
+  # implementation differs, and s03 measures the difference.
+  backend: sqlite
+  sqlite_path: data/gaa.db
+  # Only read when backend = postgres:
+  host: localhost
+  port: 5432
+  name: gaa
+  user: postgres
+  password: dev
+
+proxy:
+  height: 360          # low-res scrubbing proxy
+  crf: 30
+  preset: veryfast
+  keyint: 25           # dense keyframes => cheap seeking
+
+clips:
+  pad_before_s: 3.0    # context before t_peak_s: analysts need the build-up
+  pad_after_s: 5.0
+  # 'reencode' gives frame-accurate boundaries; 'stream_copy' is ~10x faster but
+  # snaps to the nearest keyframe. Default to accuracy, measure both in s05.
+  mode: reencode
+  crf: 23
+  preset: veryfast
+  thumb_width: 480
+
+embed:
+  model: ViT-B-32
+  pretrained: laion2b_s34b_b79k
+  dim: 512             # must match VECTOR(n) in sql/schema.sql
+  n_keyframes: 8       # uniformly sampled per clip, mean-pooled
+  batch_size: 32
+  device: auto         # auto | cuda | mps | cpu
+  # CLIP text towers were trained on caption-like strings, so queries are wrapped.
+  # Set to "{}" to disable and measure the difference.
+  text_prompt_template: "a still frame of {}"
+
+index:
+  m: 16
+  ef_construction: 64
+  ef_search: 40
+
+api:
+  host: 127.0.0.1
+  port: 8000
+  warmup_on_start: false   # keep false so cold start is measurable; true for pilots
+  default_limit: 5
+  max_limit: 50
+
+pilot:
+  task_budget_s: 90        # the slice of half-time an analyst actually has

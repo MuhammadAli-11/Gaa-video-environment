@@ -1,0 +1,31 @@
+# Core
+numpy>=1.26
+pandas>=2.2
+pyarrow>=15.0
+PyYAML>=6.0
+tqdm>=4.66
+Pillow>=10.2
+
+# Database — ONLY needed if you set db.backend: postgres in config.yaml.
+# The default sqlite backend uses the standard library and needs none of these.
+# psycopg[binary]>=3.1
+# psycopg-pool>=3.2
+# pgvector>=0.2.5
+
+# Embeddings — needed by s02 and by real queries in s04.
+# torch is large. You can build and exercise the entire pipeline without it via
+# `python src/s02_embed.py --smoke-test` and GAA_SMOKE_TEST=1 (random vectors,
+# loudly tagged as invalid). Install the CUDA build separately for GPU.
+torch>=2.2
+torchvision>=0.17
+open_clip_torch>=2.24
+
+# API
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+
+# Benchmarking and analysis
+requests>=2.31
+matplotlib>=3.8
+scipy>=1.11        # optional: enables the Wilcoxon secondary test in s07
