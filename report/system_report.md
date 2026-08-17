@@ -1,9 +1,13 @@
 # gaa-video-environment — system report
 
-**Corpus:** `data_2.mp4`, an edited Gaelic football compilation — 12m35s,
-854×478, ~29.7 fps, 91.2 MB, 19 kickouts.
+**Corpus:** `data_2.mp4`, an edited **men's** Gaelic football compilation —
+12m35s, 854×478 upscaled to 1280×720, ~29.7 fps, 91.2 MB, 19 kickouts.
 **Companion:** `gaa-kickout-vision` (Project 1), which supplied the
-segmentation and the event timestamps.
+segmentation, the event timestamps, and the detector/tracker run here.
+**Not the same footage.** Project 1 evaluates on `lgf26_final_w1` — a
+**Ladies** GF final, natively 1280×720, a continuous match passage. Different
+code, different resolution, edited vs continuous. Project 1's accuracy figures
+are quoted below to explain *mechanisms*, never as predictions for this corpus.
 **Generated:** 2026-08-16. All figures below are measured on this machine
 (CPU-only, no GPU) unless stated.
 
@@ -119,7 +123,7 @@ would consume a third of the analyst's budget on its own.
 
 ---
 
-## 4. The finding
+## 4. The finding — measured, not asserted
 
 > **Pure semantic retrieval over sport video underperforms because
 > general-purpose vision-language models have no sport-specific grounding.
@@ -127,46 +131,106 @@ would consume a third of the analyst's budget on its own.
 > usable — so the CV layer and the data architecture are not separable
 > concerns. They are one design problem.**
 
-On this corpus that claim shows up in its sharpest possible form: **the
-hybrid arm has nothing to be hybrid with.**
+The first version of this report could only show the *absence* of that
+metadata. One field has since been populated by running Project 1's own
+`s02_detect.py` and `s03_track.py` over all 19 clips
+(`tools/detect_players_data2.py`, 159 min on CPU), and the result is
+stronger than the absence was: **fragmentation does not merely fail to
+supply the field, it supplies a corrupted one.**
 
-The API pre-filters on `event_type`, `pitch_zone`, `confidence` and time.
-For `data_2`:
+### 4.1 Two ways to count players, n = 19 clips
 
-| Field | State | Why |
+Project 1 measured ByteTrack issuing 14–20 track identities per real player
+on `lgf26_final_w1`. A distinct-track-ID count is therefore a fragmentation
+count, not a player count. Both are computed here; the gap is the result.
+
+| | Naive (distinct track IDs) | De-duplicated (median simultaneous detections/frame) |
 |---|---|---|
-| `event_type` | `kickout` for all 19 | Single event class; filtering on it is a no-op |
-| `pitch_zone` | **NULL for all 19** | Needs `s04` homography, which needs hand-clicked landmarks. Never run |
-| `n_players_in_contest` | **NULL for all 19** | Needs `tracks.parquet` for `data_2`; Project 1 has only run `s02`/`s03` on `lgf26_final_w1` |
-| `confidence` | 1.0 for all 19 | Hand-marked, so uniform by construction |
+| Median | **31** | **9** |
+| Range | 7 – 71 | 2 – 21 |
+| Clips reading > 30 "players" | **11 / 19** | 0 / 19 |
 
-Measured consequence — six queries, hybrid mode against `mode=semantic`:
+A kickout contest involves at most ~15 outfield players near the ball, so
+**11 of 19 clips carry a naive count that is physically impossible.**
 
-| Query | Rankings identical? | Filters applied |
+**Inflation factor: median 3.5×, IQR 3.3–4.1×, range 2.4–10.0× (n = 19).**
+
+### 4.2 Why a rescale cannot rescue it
+
+The naive count is not noise — it ranks clips reasonably well
+(Spearman +0.812, Pearson +0.898 against the de-duplicated count). Ordering
+largely survives. What does not survive is **scale**, and a filter is a
+threshold on absolute value, not on rank.
+
+Nor is the inflation a constant that could simply be divided out. It varies
+4-fold across clips and it varies *systematically with scene content*:
+
+| Correlate of the inflation factor | Spearman ρ (n=19) |
+|---|---|
+| Players actually present | **−0.663** |
+| Total detections in window | −0.606 |
+| Median player size (px) | +0.318 |
+
+Inflation is **worst on sparse, tight-framed clips** — a two-player close-up
+still accumulates 16–20 track IDs (10.0×), while a crowded wide shot with 21
+players accumulates 50 (2.4×). So one fixed threshold means a different
+thing on every clip, in a way that is anti-correlated with the very quantity
+being measured.
+
+### 4.3 What that does to a filter
+
+| Threshold | Naive count passes | De-duplicated passes |
 |---|---|---|
-| contested kickout | yes | `{}` |
-| players jumping for a high ball | yes | `{}` |
-| goalkeeper restart | yes | `{}` |
-| long kick downfield | yes | `{}` |
-| players competing in the air | yes | `{}` |
-| short kickout to the side | yes | `{}` |
+| `n_players >= 4` | **19 / 19 (100%)** | 16 / 19 (84%) |
+| `n_players >= 8` | 18 / 19 | 14 / 19 |
+| `n_players >= 12` | **18 / 19** | **4 / 19** |
+| `n_players >= 20` | 17 / 19 | 3 / 19 |
 
-**6/6 identical.** The hybrid arm collapses exactly onto the semantic arm,
-because the vision layer could not supply a single usable structured field.
+**A filter built on the naive count is a no-op that looks like a filter.**
+At `>= 12` it admits 18 of 19 clips while the true count admits 4. It would
+not throw an error, log a warning, or return zero results — it would
+silently return almost everything, and an analyst would reasonably conclude
+the filter was working and the corpus simply contained many crowded
+kickouts.
 
-This is not a null result, it is the thesis stated precisely. The retrieval
-architecture's advantage is *contingent on the vision layer delivering
-structured metadata*, and Project 1's inability to deliver any — for
-reasons that are themselves measured and documented there — removes the
-advantage entirely. The two projects are one design problem, and this table
-is the evidence.
+This is the contingency thesis with numbers behind it: vision-layer identity
+fragmentation propagates into the retrieval layer as **metadata that is
+wrong in a direction the retrieval layer cannot detect.**
 
-The obvious objection is that a zone could be derived approximately rather
-than left NULL. It is refused on purpose: `pitch_zone` is a **pre-filter**,
-so a mislabelled clip becomes permanently unreachable. A missing zone
-costs a filter; a wrong zone costs a clip, silently.
+### 4.4 The arms now diverge — 3 of 6 queries
 
----
+With `n_players` populated from the de-duplicated estimate, the six-query
+comparison was re-run (`mode=semantic` vs `mode=hybrid&min_players=4`):
+
+| Query | Identical | Jaccard | Positional overlap |
+|---|---|---|---|
+| contested kickout | yes | 1.00 | 1.00 |
+| players jumping for a high ball | yes | 1.00 | 1.00 |
+| players competing in the air | yes | 1.00 | 1.00 |
+| goalkeeper restart | **no** | 0.25 | 0.00 |
+| long kick downfield | **no** | 0.25 | 0.00 |
+| short kickout to the side | **no** | 0.25 | 0.00 |
+
+**3 / 6 identical** (was 6 / 6), mean Jaccard 0.625, mean positional overlap
+0.500. One weak field was enough to separate the arms.
+
+### 4.5 The divergence may well be harmful, and this corpus cannot say
+
+The three queries that changed are the three about phases with **few players
+in frame** — a keeper restarting, a ball travelling downfield, a short kick
+to the side. The filter dropped the same three sparse clips from each
+(`seg01_ko_001`, `seg08_ko_002`, `seg09_ko_001`, all de-duplicated count 2).
+
+Those are plausibly the *most* relevant clips for "goalkeeper restart". A
+`min_players >= 4` filter may therefore be removing correct answers from
+exactly the queries it affects. **Without relevance judgements this report
+cannot say whether the divergence is an improvement or a regression, and it
+does not claim either.** Divergence is a measurement; quality is not.
+
+That is itself the honest form of the finding: a structured filter derived
+from a fragmenting tracker changes retrieval results, and whether it changes
+them for the better is a separate question this corpus is not equipped to
+answer (§5).
 
 ## 5. Retrieval quality — deliberately not reported
 

@@ -1,0 +1,28 @@
+17:23:28  INFO    detect_data2  Project 1 at C:\Users\Dark\training\projects\project_1\gaa-kickout-vision (config config_data2.yaml)
+17:23:28  INFO    detect_data2  Project 1 run dir: run_347ef8b7
+17:23:28  INFO    detect_data2  19 clips, source data_2.mp4
+17:23:28  INFO    detect_data2  [ 1/19] data_2_seg01_ko_001    cached 0.0s
+17:31:22  INFO    detect_data2  [ 2/19] data_2_seg01_ko_002    s02+s03 470.1s
+17:39:05  INFO    detect_data2  [ 3/19] data_2_seg01_ko_003    s02+s03 460.2s
+17:48:02  INFO    detect_data2  [ 4/19] data_2_seg01_ko_004    s02+s03 535.3s
+17:56:18  INFO    detect_data2  [ 5/19] data_2_seg01_ko_005    s02+s03 493.3s
+18:07:58  INFO    detect_data2  [ 6/19] data_2_seg02_ko_001    s02+s03 697.6s
+18:17:13  INFO    detect_data2  [ 7/19] data_2_seg03_ko_001    s02+s03 544.1s
+18:24:59  INFO    detect_data2  [ 8/19] data_2_seg04_ko_001    s02+s03 463.0s
+18:34:07  INFO    detect_data2  [ 9/19] data_2_seg05_ko_001    s02+s03 546.0s
+18:43:42  INFO    detect_data2  [10/19] data_2_seg06_ko_001    s02+s03 570.7s
+18:52:51  INFO    detect_data2  [11/19] data_2_seg06_ko_002    s02+s03 543.5s
+19:01:47  INFO    detect_data2  [12/19] data_2_seg07_ko_001    s02+s03 534.1s
+19:11:23  INFO    detect_data2  [13/19] data_2_seg07_ko_002    s02+s03 572.8s
+19:21:22  INFO    detect_data2  [14/19] data_2_seg08_ko_001    s02+s03 596.8s
+19:30:44  INFO    detect_data2  [15/19] data_2_seg08_ko_002    s02+s03 558.9s
+19:39:03  INFO    detect_data2  [16/19] data_2_seg09_ko_001    s02+s03 496.9s
+19:47:08  INFO    detect_data2  [17/19] data_2_seg09_ko_002    s02+s03 482.6s
+19:54:50  INFO    detect_data2  [18/19] data_2_seg09_ko_003    s02+s03 458.9s
+20:02:33  INFO    detect_data2  [19/19] data_2_seg10_ko_001    s02+s03 460.8s
+20:02:33  INFO    detect_data2  ==============================================================================
+20:02:33  INFO    detect_data2  19 clips in 159.1 min
+20:02:33  INFO    detect_data2  naive track-ID count : median 31  range 7-71
+20:02:33  INFO    detect_data2  de-duplicated count  : median 9  range 2-21
+20:02:33  INFO    detect_data2  inflation factor     : median 3.5x range 2.4-10.0x
+20:02:33  INFO    detect_data2  wrote outputs\player_counts_data_2.csv

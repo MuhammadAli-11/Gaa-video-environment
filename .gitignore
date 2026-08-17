@@ -1,4 +1,9 @@
 # Media and derived artefacts
+# Per-clip detection/tracking intermediates from tools/detect_players_data2.py.
+# Expensive to regenerate (~11 min a clip on CPU) but strictly derived — the
+# committed deliverable is outputs/player_counts_data_2.csv plus its provenance.
+outputs/data_2_detect/
+*.parquet
 data/
 *.mp4
 *.mkv

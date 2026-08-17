@@ -17,17 +17,46 @@ here:
   semantic search over sport video does not work well enough on its own — see
   [The finding](#the-finding).
 
-Companion to `gaa-kickout-vision` (Project 1), which supplies the events this
-layer indexes.
+Companion to `gaa-kickout-vision` (Project 1). The two share **tooling and
+findings, not footage** — see below, because the distinction changes what may be
+concluded from either.
 
-## Current corpus
+## Current corpus, and what it does not share with Project 1
 
-`data_2.mp4` — an edited compilation, 12m35s, 854×478, ~29.7 fps, **19 kickouts**.
+`data_2.mp4` — an edited compilation, 12m35s, 854×478 upscaled to 1280×720,
+~29.7 fps, **19 kickouts**.
 
-Events are Project 1's **hand-marked** kickout timestamps, bridged into
-compilation time by `tools/events_from_project1.py`. They are deliberately *not*
-`s07`'s predictions: that detector measured precision@8 = 1/8 and had an inverted
-velocity term, so indexing it would confound retrieval error with detection error.
+**This is not the footage Project 1 evaluates on.** Project 1's measured
+baseline comes from `lgf26_final_w1`: a Ladies Gaelic Football final, natively
+1280×720, from a 28 fps broadcast source, annotated and evaluated as a
+continuous passage of one match. `data_2` is a **men's Gaelic football
+compilation** — a different code with different kick range and rules, at roughly
+a third of the pixel area, cut and edited rather than continuous.
+
+Consequences, stated because they are easy to forget once both repos are open:
+
+| | Project 1 (`lgf26_final_w1`) | This repo (`data_2`) |
+|---|---|---|
+| Code | Ladies GF | Men's GF |
+| Native resolution | 1280×720 | 854×478 (upscaled) |
+| Continuity | continuous match passage | edited compilation, cuts and replays |
+| Role | detection/tracking evaluation | retrieval corpus |
+
+So Project 1's accuracy figures **do not transfer** to this corpus as
+predictions — they are measurements on other footage, quoted here to explain
+*mechanisms* rather than to assert what the detector achieves on `data_2`. What
+genuinely crosses over is the **code** (`s02`/`s03` are run here directly) and
+the **failure modes** those figures established.
+
+What Project 1 does supply for this corpus:
+
+- the **segmentation** of `data_2` and the **19 hand-marked kickout timestamps**,
+  bridged into compilation time by `tools/events_from_project1.py`. These are
+  deliberately *not* `s07`'s predictions: that detector measured precision@8 =
+  1/8 with an inverted velocity term, so indexing it would confound retrieval
+  error with detection error.
+- the **detector and tracker themselves**, run on `data_2` via
+  `tools/detect_players_data2.py` to populate `n_players_in_contest`.
 
 Measured end to end on CPU: ingest **4.95× realtime** (7.1 min for a 35-min half),
 warm query **p50 86 ms**, of which vector search is **0.39 ms**. Full numbers and
@@ -59,6 +88,8 @@ the argument they support: [`report/system_report.md`](report/system_report.md).
 ├── tools/
 │   ├── events_from_project1.py  bridge Project 1's hand-marked kickouts into
 │   │                            compilation time, with a timebase cross-check
+│   ├── detect_players_data2.py  run Project 1's s02/s03 on data_2 to populate
+│   │                            n_players_in_contest (de-duplicated, not track ids)
 │   └── make_demo_events.py      stand-in events for building before Project 1 lands
 └── report/system_report.md   the three-page deliverable
 ```
@@ -264,23 +295,42 @@ curl "localhost:8000/events?zone=middle&limit=20" | jq '.n_results'
 > from the vision layer is what makes retrieval usable — so the CV layer and the data
 > architecture are not separable concerns. They are one design problem.
 
-On the `data_2` corpus this shows up in its sharpest form: **the hybrid arm has
-nothing to be hybrid with.** Every structured field the API can pre-filter on is
-either constant or NULL —
+On the `data_2` corpus, one field has been populated by running Project 1's own
+`s02`/`s03` over all 19 clips — and it demonstrates something sharper than absence:
+**fragmentation supplies corrupted metadata, not missing metadata.**
 
-| Field | State | Why |
+| | Naive (distinct track IDs) | De-duplicated (median simultaneous detections/frame) |
 |---|---|---|
-| `event_type` | `kickout` ×19 | single event class; filtering is a no-op |
-| `pitch_zone` | **NULL ×19** | needs `s04` homography, which needs hand-clicked landmarks. Never run |
-| `n_players_in_contest` | **NULL ×19** | needs `tracks.parquet` for `data_2`; Project 1 only ran `s02`/`s03` on `lgf26_final_w1` |
-| `confidence` | 1.0 ×19 | hand-marked, so uniform by construction |
+| Median | **31** | **9** |
+| Range | 7 – 71 | 2 – 21 |
+| Clips reading > 30 "players" | **11 / 19** | 0 / 19 |
 
-— and across six queries, hybrid mode and `mode=semantic` returned **identical
-rankings 6/6**, with `filters_applied` empty every time.
+A kickout contest involves at most ~15 outfield players near the ball, so 11 of 19
+naive counts are physically impossible. Inflation: **median 3.5×, range 2.4–10.0×**.
 
-That is not a null result. It is the thesis stated precisely: the architecture's
-advantage is *contingent* on the vision layer delivering structured metadata, and
-when it cannot, the advantage disappears entirely.
+Rescaling cannot fix it. The naive count *ranks* clips fine (Spearman +0.812) but
+its **scale** is wrong, and a filter thresholds absolute values. The inflation also
+varies 4-fold and anti-correlates with the quantity being measured (ρ = −0.663 against
+players actually present) — worst on sparse close-ups, mildest on crowded wide shots.
+
+The consequence is a filter that is a no-op wearing a filter's name:
+
+| Threshold | Naive passes | De-duplicated passes |
+|---|---|---|
+| `n_players >= 4` | **19/19** | 16/19 |
+| `n_players >= 12` | **18/19** | **4/19** |
+| `n_players >= 20` | 17/19 | 3/19 |
+
+It returns no error and no warning — just almost everything.
+
+With the de-duplicated field live, the six-query comparison now gives **3/6 identical**
+(was 6/6), mean Jaccard 0.625. One weak field was enough to separate the arms.
+
+**But the divergence may be harmful.** The three queries that changed are the three
+about sparse phases — a keeper restarting, a ball downfield, a short kick — and the
+filter dropped the same three low-count clips from each. Those are plausibly the most
+relevant answers for "goalkeeper restart". Without relevance judgements this repo
+**does not claim the divergence is an improvement**, only that it is real.
 
 A zone could be approximated rather than left NULL. It is refused on purpose:
 `pitch_zone` is a **pre-filter**, so a wrong label makes a clip permanently

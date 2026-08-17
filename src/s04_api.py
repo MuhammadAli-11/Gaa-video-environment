@@ -197,7 +197,8 @@ def fmt_timecode(t: float | None) -> str | None:
     return f"{m:02d}:{s:02d}"
 
 
-def build_filters(event_type, zone, min_confidence, t_from, t_to) -> tuple[str, dict, dict]:
+def build_filters(event_type, zone, min_confidence, t_from, t_to,
+                  min_players=None) -> tuple[str, dict, dict]:
     clauses, params, applied = [], {}, {}
     if event_type:
         clauses.append("e.event_type = %(event_type)s")
@@ -211,6 +212,13 @@ def build_filters(event_type, zone, min_confidence, t_from, t_to) -> tuple[str, 
         clauses.append("COALESCE(e.confidence, 1.0) >= %(min_conf)s")
         params["min_conf"] = min_confidence
         applied["min_confidence"] = min_confidence
+    if min_players is not None:
+        # NULL is excluded rather than treated as zero. A clip whose player
+        # count was never computed is not a clip with no players, and letting
+        # NULL pass the filter would silently pad results with unmeasured clips.
+        clauses.append("e.n_players IS NOT NULL AND e.n_players >= %(min_players)s")
+        params["min_players"] = min_players
+        applied["min_players"] = min_players
     if t_from is not None:
         clauses.append("e.t_peak_s >= %(t_from)s")
         params["t_from"] = t_from
@@ -280,6 +288,10 @@ def search(
     min_confidence: float | None = None,
     t_from: float | None = None,
     t_to: float | None = None,
+    min_players: int | None = Query(
+        default=None,
+        description="minimum de-duplicated players in the contest window. "
+                    "Clips with a NULL count are excluded, not treated as zero."),
     limit: int = Query(default=None),
     mode: Literal["hybrid", "semantic"] = "hybrid",
 ):
@@ -298,7 +310,7 @@ def search(
     encode_ms = (time.perf_counter() - t0) * 1000
 
     if mode == "hybrid":
-        where, params, applied = build_filters(event_type, zone, min_confidence, t_from, t_to)
+        where, params, applied = build_filters(event_type, zone, min_confidence, t_from, t_to, min_players)
     else:
         where, params, applied = "", {}, {}
 
@@ -362,6 +374,10 @@ def list_events(
     min_confidence: float | None = None,
     t_from: float | None = None,
     t_to: float | None = None,
+    min_players: int | None = Query(
+        default=None,
+        description="minimum de-duplicated players in the contest window. "
+                    "Clips with a NULL count are excluded, not treated as zero."),
     limit: int = 50,
     order: Literal["time", "confidence"] = "time",
 ):
@@ -372,7 +388,7 @@ def list_events(
     routing that through a vision-language model would be slower and worse.
     """
     t_request = time.perf_counter()
-    where, params, applied = build_filters(event_type, zone, min_confidence, t_from, t_to)
+    where, params, applied = build_filters(event_type, zone, min_confidence, t_from, t_to, min_players)
     order_by = "e.t_start_s ASC" if order == "time" else "e.confidence DESC NULLS LAST"
     sql = f"""
         SELECT {SELECT_COLS}, NULL AS similarity

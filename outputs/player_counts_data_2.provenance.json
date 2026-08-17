@@ -1,0 +1,13 @@
+{
+  "produced_by": "tools/detect_players_data2.py",
+  "project1_config": "config_data2.yaml",
+  "project1_run_id": "run_347ef8b7",
+  "detector": "yolov8m.pt, imgsz 960, conf 0.25, class 0",
+  "imgsz_deviation": "Project 1's config.yaml uses imgsz 1280. data_2 is natively 854x478, so 1280 is upsampling. 960 agreed with 1280 on 100% of reference boxes at IoU 0.5 (n=6 frames) and ran 2.2x faster. NOT valid for lgf26_final.",
+  "tracker": "bytetrack, per Project 1 config",
+  "contest_window_s": 6.0,
+  "dedup_method": "median simultaneous detections per frame over the contest window",
+  "dedup_caveat": "inherits detection recall (Project 1: 0.294 @IoU0.5, 0.463 @IoU0.3), so this UNDER-counts. It is a floor on the true player count, not an unbiased estimate.",
+  "naive_caveat": "distinct track ids. Project 1 measured 14-20 identities per real player, so this is a fragmentation count.",
+  "n_clips": 19
+}
