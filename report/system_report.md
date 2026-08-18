@@ -291,11 +291,29 @@ frame-rate conversion upstream, framing that changes scale between contest
 and open play, and cuts that are not separable from pans.
 
 Project 2 measured what a retrieval layer built on top of that costs and
-delivers, and found the query path is essentially free — 0.39 ms of
-ranking behind an 81.6 ms encode — while the thing that actually determines
+delivers. The query path is essentially free — 0.39 ms of ranking behind an
+81.6 ms encode — so latency was never the risk. What actually determines
 whether retrieval is *useful* is the structured metadata the vision layer
-can supply. On this corpus it could supply none, and the hybrid arm
-collapsed onto the semantic one in 6 out of 6 queries.
+supplies, and that is where the two projects meet.
+
+The first version of this report could only observe that the metadata was
+missing. With one field now populated, the finding is sharper and worse:
+**the vision layer does not fail by supplying nothing. It fails by supplying
+something wrong, in a form the retrieval layer cannot detect.** A tracker
+issuing 14–20 identities per player yields a player count inflated 3.5× on
+median, with the inflation varying 2.4–10.0× and anti-correlated with the
+quantity being measured. The rank order survives (Spearman +0.812), so any
+sanity check based on correlation passes. Only the scale is destroyed — and
+a filter thresholds scale, not rank. The result is `n_players >= 12`
+admitting 18 of 19 clips where the truth is 4, silently.
+
+That is the strongest form of the contingency claim these two projects can
+make together. It is not that better CV would make retrieval better. It is
+that **CV error does not stay inside the CV layer**: it propagates into the
+data architecture as plausible-looking metadata, and a retrieval system has
+no way to tell a fragmented count from a crowded one. Detection and
+retrieval cannot be validated separately, because the failure crosses the
+boundary between them wearing the right shape.
 
 Neither result is the one that was hoped for. Both are measured, both are
 reproducible, and both point at the same conclusion the source paper

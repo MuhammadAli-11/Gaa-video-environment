@@ -12,10 +12,13 @@ here:
   and embedding are done as footage arrives.
 - **Query time is cheap by construction.** One text encode, one cosine ANN lookup.
   Nothing on the request path decodes video or runs a detector.
-- **Retrieval is hybrid.** Structured metadata from the vision layer pre-filters the
-  candidate set; vector similarity ranks what survives. This is here because pure
-  semantic search over sport video does not work well enough on its own — see
-  [The finding](#the-finding).
+- **Retrieval is hybrid, and that is the dependency worth measuring.** Structured
+  metadata from the vision layer pre-filters the candidate set; vector similarity
+  ranks what survives. Pure semantic search over sport video is not good enough on
+  its own — but the pre-filter inherits whatever the vision layer got wrong. Measured
+  here: a tracker that fragments identity produces a player count inflated **3.5×**,
+  which turns `n_players >= 12` into a filter that admits **18 of 19 clips instead of
+  4** and reports no error while doing it. See [The finding](#the-finding).
 
 Companion to `gaa-kickout-vision` (Project 1). The two share **tooling and
 findings, not footage** — see below, because the distinction changes what may be
@@ -128,16 +131,21 @@ for any index):
 
 | Corpus | Median search | Resident |
 |---|---|---|
-| 18 clips (one match) | **0.02 ms** | 0.04 MB |
+| 19 clips (this corpus) | **0.03 ms** | 0.04 MB |
 | 1,000 | 0.13 ms | 1.9 MB |
-| 10,000 (a season) | 1.2 ms | 19.5 MB |
-| 100,000 | 18.7 ms | 195 MB |
+| 10,000 (a season) | 1.25 ms | 19.5 MB |
+| 100,000 | 13.3 ms | 195 MB |
+| 1,000,000 | 137 ms | 1,953 MB |
 
 Against a 90-second task budget, exhaustive search is free up to about 100,000
-clips — several seasons of footage. An HNSW probe cannot beat 0.02 ms, and a
+clips — several seasons of footage. An HNSW probe cannot beat 0.03 ms, and a
 round-trip to a database socket to attempt it costs more than the arithmetic. The
 approximate index is architecture for a scale this project does not reach, and
 `s03` measures that rather than assuming it.
+
+Past 100,000, **memory binds before latency does**: at 1M vectors the 137 ms search
+still fits the budget but the 1.9 GB resident matrix does not fit comfortably in a
+laptop process. That is where an on-disk index earns its place, and not before.
 
 Exhaustive search is also **exact**, which removes a whole class of caveat from the
 evaluation: there is no recall/latency tradeoff to tune and no approximation error
@@ -382,7 +390,7 @@ them up.
 | Ingest throughput | 2–6× realtime on CPU | measured 4.95× → a 35-min half in 7.1 min |
 | Storage per match-minute | 15–60 MB | measured 7.34 MB on 854×478 source; scales with resolution |
 | P@5, pure semantic | 0.30–0.55 | not measured on this corpus — see [The finding](#the-finding) |
-| P@5, hybrid | 0.55–0.80 | unavailable: no structured field to filter on |
+| P@5, hybrid | 0.55–0.80 | not measured. The filter now exists and *changes* results (3/6 queries), but whether it improves them needs relevance judgements |
 | MRR | 0.4–0.7 | not measured |
 | Task success rate | 60–85% | |
 | Median time on task | 40–120 s | some tasks will blow the 90 s budget |
